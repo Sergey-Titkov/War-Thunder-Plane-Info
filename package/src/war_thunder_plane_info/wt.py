@@ -2,26 +2,51 @@ import csv
 import json
 import logging
 import os
+from enum import Enum
 
-root_dir = '.\\War-Thunder-Datamine-master\\'
-lang_dir = f'{root_dir}\\lang.vromfs.bin_u\\lang\\'
-flightmodels_path = f'{root_dir}\\aces.vromfs.bin_u\\gamedata\\flightmodels\\'
+root_dir = fr'./War-Thunder-Datamine-master/'
+lang_dir = fr'{root_dir}/lang.vromfs.bin_u/lang/'
+flightmodels_path = fr'{root_dir}/aces.vromfs.bin_u/gamedata/flightmodels/'
+
+class WTUnitsNameLang(Enum):
+    English = 1
+    French = 2
+    Italian = 3
+    German = 4
+    Spanish = 5
+    Russian = 6
+    Polish = 7
+    Czech = 8
+    Turkish = 9
+    Chinese = 10
+    Japanese = 11
+    Portuguese = 12
+    Ukrainian = 13
+    Serbian = 14
+    Hungarian = 15
+    Korean = 16
+    Belarusian = 17
+    Romanian = 18
+    TChinese = 19
+    HChinese = 20
+    Vietnamese = 21
+
 
 class WTUnitsName:
-    r"""Класс позволяет получить по ID техники ее наименование.
+    """
+    Класс позволяет получить по ID техники ее наименование.
     Формат использования wt_units_name[<ID техники>]
-    Данные считываются из файла units.csv, обычно он находится в каталоге:.\War-Thunder-Datamine-master\lang.vromfs.bin_u\lang\
+    Данные считываются из файла units.csv, обычно он находится в каталоге:./War-Thunder-Datamine-master/lang.vromfs.bin_u/lang/
     Если пути отличны от стандартных то можно вызвать конструктор и передать ему полный путь.
     """
 
-    list_plane_name = []
-
-    def __init__(self,file_name=r"".join([lang_dir, "\\", r'units.csv'])):
-        r"""Загружает данные из файла units.csv, если файла нет, будет ошибка
-        :param file_name: путь до файла units.csv, по умолчанию .\War-Thunder-Datamine-master\lang.vromfs.bin_u\lang\units.csv
+    def __init__(self, file_name=fr'{lang_dir}/units.csv'):
         """
-        # Все из за этой херни
-        # SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 785-786: truncated \uXXXX escape
+        Загружает данные из файла units.csv, если файла нет, будет ошибка
+        :param file_name: путь до файла units.csv, по умолчанию ./War-Thunder-Datamine-master/lang.vromfs.bin_u/lang/units.csv
+        """
+        self.list_plane_name = []
+
         with open(file_name, newline='', encoding='utf-8') as csvfile:
             cvs_reader = csv.reader(csvfile, delimiter=';')
             # Пропустили заголовок
@@ -30,21 +55,33 @@ class WTUnitsName:
                 self.list_plane_name.append(row)
 
     def __getitem__(self, key):
-        # Проверяем, есть ли ключ в списке
-        result = None
+        result = f'{key}_0'
         for row in self.list_plane_name:
-            if key == row[0]:
-                result = row[1]
+            if result == row[0]:
+                result = row[WTUnitsNameLang.English.value]
                 break
-        if result is not None:
-            return result
-        else:
-            raise KeyError(f"Ключ '{key}' не найден.")
+        return result
+
+    def get(self,plane_id,lang:WTUnitsNameLang = WTUnitsNameLang.English):
+        """
+        Получить название техники на указанном языке.
+        :param plane_id: ID техники (например, 'f-4s')
+        :param lang: язык из WTUnitsNameLang
+        :return: Название или исходный plane_id, если не найдено
+        """
+        result = f'{plane_id}_0'
+        for row in self.list_plane_name:
+            if result == row[0]:
+                result = row[lang.value]
+                break
+        return result
+
 
 class WTFlightModel:
     """Класс набор параметров из флайт модели самолета
     Формат использования WTFlightModel[<Имя параметра>]
     """
+
     def _get_length(self, json_data):
         """Метод возвращает длину самолета, если атрибут не найден возвращает 0
         """
@@ -253,12 +290,12 @@ class WTFlightModel:
             i = 0
             list_fds = json_data["Mass"]['FlapsDestructionIndSpeedP']
             while i < len(list_fds):
-                row = [0,0]
+                row = [0, 0]
                 row[0] = list_fds[i]
-                row[1] = list_fds[i+1]
-                i = i+2
+                row[1] = list_fds[i + 1]
+                i = i + 2
                 result.append(row)
-        if len(result)==0:
+        if len(result) == 0:
             logging.warning(f'Самолет:{self._data['FmID']} - требуется уточнение по критическим скоростям закрылок')
         return result
 
@@ -297,7 +334,7 @@ class WTFlightModel:
         Если определить параметр не удалось, то возвращаем 0
         """
         result = int(0)
-        for i in range(0,8):
+        for i in range(0, 8):
             if f"Engine{i}" in json_data:
                 engine = json_data[f"Engine{i}"]
 
@@ -329,15 +366,15 @@ class WTFlightModel:
         """
         result = {}
         if "EngineType0" in json_data:
-            result['RPMMin']         = int(json_data["EngineType0"]["Main"]["RPMMin"])
+            result['RPMMin'] = int(json_data["EngineType0"]["Main"]["RPMMin"])
             result['RPMMax'] = int(json_data["EngineType0"]["Main"]["RPMMax"])
-            result['RPMMaxAllowed']  = int(json_data["EngineType0"]["Main"]["RPMMaxAllowed"])
+            result['RPMMaxAllowed'] = int(json_data["EngineType0"]["Main"]["RPMMaxAllowed"])
             return result
 
         if "Engine0" in json_data and "Main" in json_data["Engine0"]:
             node = json_data["Engine0"]["Main"]
             if "RPMMin" in node:
-                result['RPMMin']         = int(json_data["Engine0"]["Main"]["RPMMin"])
+                result['RPMMin'] = int(json_data["Engine0"]["Main"]["RPMMin"])
 
             # Это бывает массивом... Например: do_17z_2
             if "RPMAfterburner" in json_data["Engine0"]["Main"]:
@@ -348,7 +385,7 @@ class WTFlightModel:
                     result['RPMMax'] = int(node)
 
             if "RPMMaxAllowed" in json_data["Engine0"]["Main"]:
-                result['RPMMaxAllowed']  = int(json_data["Engine0"]["Main"]["RPMMaxAllowed"])
+                result['RPMMaxAllowed'] = int(json_data["Engine0"]["Main"]["RPMMaxAllowed"])
             return result
 
         logging.warning(f'Самолет:{self._data['FmID']} - обороты двигателя не нашли')
@@ -365,7 +402,7 @@ class WTFlightModel:
             logging.warning(f'Самолет:{self._data['FmID']} - нитро не нашли')
         return result
 
-    def _get_value_from_node(self,node,path):
+    def _get_value_from_node(self, node, path):
         """Метод возвращает значение ноды указанной в пути
         Если нода не существует, то возвращается: None
         Пример вызова: get_value_from_node(json_data,["Engine0","Afterburner","NitroConsumption"])
@@ -388,7 +425,7 @@ class WTFlightModel:
             result = json_data["EngineType0"]["Afterburner"]["NitroConsumption"]
             return result
 
-        value = self._get_value_from_node(json_data,["Engine0","Afterburner","NitroConsumption"])
+        value = self._get_value_from_node(json_data, ["Engine0", "Afterburner", "NitroConsumption"])
         if value is not None:
             result = value
             return result
@@ -403,7 +440,8 @@ class WTFlightModel:
         """
         result = []
         default = [0, 0, 0, 0, 0]
-        if 'Aerodynamics' in json_data and 'WingPlane' in json_data['Aerodynamics'] and 'FlapsPolar0' in json_data['Aerodynamics']['WingPlane'] and 'Aerodynamics' in json_data and 'WingPlane' in json_data['Aerodynamics'] and 'FlapsPolar1' in json_data['Aerodynamics']['WingPlane']:
+        if 'Aerodynamics' in json_data and 'WingPlane' in json_data['Aerodynamics'] and 'FlapsPolar0' in json_data['Aerodynamics'][
+            'WingPlane'] and 'Aerodynamics' in json_data and 'WingPlane' in json_data['Aerodynamics'] and 'FlapsPolar1' in json_data['Aerodynamics']['WingPlane']:
             default[1] = json_data["Aerodynamics"]["WingPlane"]["FlapsPolar0"]["alphaCritHigh"]
             default[2] = json_data["Aerodynamics"]["WingPlane"]["FlapsPolar0"]["alphaCritLow"]
             default[3] = json_data["Aerodynamics"]["WingPlane"]["FlapsPolar1"]["alphaCritHigh"]
@@ -439,7 +477,7 @@ class WTFlightModel:
                         logging.warning(f'Самолет:{self._data['FmID']} - критические углы не нашли')
         return result
 
-    def __init__(self,file_name):
+    def __init__(self, file_name):
         self._data = {}  # Внутренний словарь для хранения свойств
         # Читаем данные из файла флайт модели для самолета.
         with open(file_name, 'r') as fm_file:
@@ -486,6 +524,7 @@ class WTFlightModel:
     def get_all(self):
         """Возвращает все значения флайт модели"""
         return self._data.copy()
+
 
 class WTPlaneModel:
     """Класс набор параметров из модели самолета
@@ -548,27 +587,24 @@ class WTPlaneModel:
                 result = json_data['fmFile'][1]
             else:
                 result = json_data['fmFile']
-            #result = os.path.basename(result).replace('.blk', '')
+            # result = os.path.basename(result).replace('.blk', '')
         else:
             logging.info(f'Самолет:{self._data['PlaneID']} - файл флайт модели не найден')
-            result = f'fm/{self._data['PlaneID']}'
+            result = fr'fm/{self._data['PlaneID']}'
 
         # Вот эта фигня объяснятся просто, в некоторых файлах забыли добавить .blk поэтому мне приходится все выглаживать гадая на шанике
         result = f'{result.replace('.blk', '')}.blkx'
         return result
 
-    def __init__(self, plane_id = '', file_name = '', units_name = WTUnitsName()):
+    def __init__(self, plane_id='', file_name='', plane_name=''):
         """Загружает данные из модели самолета
         :param plane_id: ID самолета, совпадает с именем файла(без расширения) модели самолета. Используется в том случае если расположение данных по умолчанию
         :param file_name: Путь до файла с моделью самолета, если задано то будет использоваться оно.
-        :param units_name: Используется в том случае если расположение данных отличается от рекомендованных, тогда должно иметь вид: WTUnitsName(<Путь до файла units.csv>)
+        :param plane_name: Имя самолёта
         """
         self._data = {}  # Внутренний словарь для хранения свойств
-        if WTPlaneModel._units_name is None:
-            WTPlaneModel._units_name = units_name
-            pass
 
-        full_file_name = f'{flightmodels_path}\\{plane_id}.blkx'
+        full_file_name = fr'{flightmodels_path}/{plane_id}.blkx'
         if file_name != '':
             full_file_name = file_name
             plane_id = os.path.basename(full_file_name).replace('.blk', '')
@@ -579,10 +615,7 @@ class WTPlaneModel:
         with open(full_file_name, 'r') as file:
             main_data = json.load(file)
             self.flight_model = self._get_flight_model(main_data)
-            try:
-                self._data['Name'] = {'English': WTPlaneModel._units_name[f'{plane_id}_0']}
-            except KeyError:
-                self._data['Name'] = {'English': f'{plane_id}_0'}
+            self._data['Name'] = {'English': plane_name}
             self._data['fmFile'] = self._get_flight_model(main_data)
             self._data['Type'] = self._get_type(main_data)
 
@@ -610,28 +643,29 @@ class WTPlaneModel:
         """Возвращает все значения флайт модели"""
         return self._data.copy()
 
+
 # Класс возвращает информацию о самолете
 class WTPlaneFullInfo:
     """ Класс возвращает полную информацию о самолете
     Формат использования WTPlaneModel[<Имя параметра>]
     """
 
-    def __init__(self, plane_id = '', file_name = '', units_name = WTUnitsName()):
+    def __init__(self, plane_id='', file_name='', plane_name=''):
         """Загружает данные из модели самолета
         :param plane_id: ID самолета, совпадает с именем файла(без расширения) модели самолета. Используется в том случае если расположение данных по умолчанию
         :param file_name: Путь до файла с моделью самолета, если задано то будет использоваться оно.
-        :param units_name: Используется в том случае если расположение данных отличается от рекомендованных, тогда должно иметь вид: WTUnitsName(<Путь до файла units.csv>)
+        :param plane_name: Имя самолёта
         """
         self._data = {}  # Внутренний словарь для хранения свойств
 
-        plane_model  = WTPlaneModel(plane_id = plane_id, file_name = file_name, units_name = units_name)
+        plane_model = WTPlaneModel(plane_id=plane_id, file_name=file_name, plane_name=plane_name)
         self._data = plane_model.get_all()
 
         fm_file_path = f'{flightmodels_path}'
         if file_name != '':
             fm_file_path = os.path.dirname(file_name)
 
-        fm_file_path = f'{fm_file_path}\\{self._data['fmFile']}'
+        fm_file_path = fr'{fm_file_path}/{self._data['fmFile']}'
         flight_model = WTFlightModel(fm_file_path)
         self._data.update(flight_model.get_all())
 
