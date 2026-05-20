@@ -560,7 +560,7 @@ class WTPlaneModel:
         result = None
         if 'sensors' in json_data and 'sensor' in json_data['sensors']:
             for raw in json_data['sensors']['sensor']:
-                if 'blk' in raw:
+                if isinstance(raw, dict) and  'blk' in raw:
                     try:
 
                         full_file_name = fr'{self._wt_telemetry_paths.vforms}/{raw['blk']}'.replace('.blk','.blkx')
@@ -575,7 +575,7 @@ class WTPlaneModel:
                                     result['TargetRangeMax'] = data['targetRange'][1]
                                 break;
                     except Exception as e:
-                        print(e)
+                        print('! >',raw, '< ',e)
         return result
     # Определяем тип самолета.
     def _get_type(self, json_data):
