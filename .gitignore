@@ -1,2 +1,3 @@
 /.idea/*
 /package/dist/*
+/package/src/war_thunder_plane_info/__pycache__/*.*

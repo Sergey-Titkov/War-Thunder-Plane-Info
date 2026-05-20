@@ -3,10 +3,25 @@ import json
 import logging
 import os
 from enum import Enum
+from logging import exception
+from pathlib import Path
+from typing import Optional
+from unittest import result
 
-root_dir = fr'./War-Thunder-Datamine-master/'
-lang_dir = fr'{root_dir}/lang.vromfs.bin_u/lang/'
-flightmodels_path = fr'{root_dir}/aces.vromfs.bin_u/gamedata/flightmodels/'
+DEFAULT_ROOT = fr'./War-Thunder-Datamine-master/'
+
+class WTTelemetryPaths:
+    def __init__(self, root_dir: str = None):
+        self.root_dir = root_dir if root_dir else DEFAULT_ROOT
+        self.lang_dir = fr'{self.root_dir}/lang.vromfs.bin_u/lang/'
+        self.flightmodels_path = fr'{self.root_dir}/aces.vromfs.bin_u/gamedata/flightmodels/'
+        self.vforms = fr'{self.root_dir}/aces.vromfs.bin_u/'
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(root_dir={self.root_dir})"
+
+# Экземпляр по умолчанию (для быстрого использования)
+default_paths = WTTelemetryPaths()
 
 class WTUnitsNameLang(Enum):
     English = 1
@@ -40,13 +55,15 @@ class WTUnitsName:
     Если пути отличны от стандартных то можно вызвать конструктор и передать ему полный путь.
     """
 
-    def __init__(self, file_name=fr'{lang_dir}/units.csv'):
+    def __init__(self, paths: WTTelemetryPaths = None ):
         """
         Загружает данные из файла units.csv, если файла нет, будет ошибка
-        :param file_name: путь до файла units.csv, по умолчанию ./War-Thunder-Datamine-master/lang.vromfs.bin_u/lang/units.csv
+        :paths Класс с путем до коня где находится дата майн, по умолчанию данные находятся в каталоге War-Thunder-Datamine-master в каталоге откуда происходит запуск
         """
         self.list_plane_name = []
 
+        wt_telemetry_paths = paths if paths else default_paths
+        file_name =fr'{wt_telemetry_paths.lang_dir}/units.csv'
         with open(file_name, newline='', encoding='utf-8') as csvfile:
             cvs_reader = csv.reader(csvfile, delimiter=';')
             # Пропустили заголовок
@@ -527,11 +544,39 @@ class WTFlightModel:
 
 
 class WTPlaneModel:
-    """Класс набор параметров из модели самолета
+    """
+    Класс набор параметров из модели самолета
     Формат использования WTPlaneModel[<Имя параметра>]
     """
     _units_name = None
 
+    # Определяем тип самолета.
+    def _get_rwr(self, json_data) -> dict:
+        """
+        Возращает данные установленной на самолет СПО, если СПО нет или данные не прочитаны то значение будет None
+        :param json_data:  Данные считанные из файла модели самолета
+        :return: Либо словарь, либо пусто
+        """
+        result = None
+        if 'sensors' in json_data and 'sensor' in json_data['sensors']:
+            for raw in json_data['sensors']['sensor']:
+                if 'blk' in raw:
+                    try:
+
+                        full_file_name = fr'{self._wt_telemetry_paths.vforms}/{raw['blk']}'.replace('.blk','.blkx')
+                        with open(full_file_name, 'r') as file:
+                            data = json.load(file)
+                            if 'type' in data and 'rwr'== data['type']:
+                                result = {}
+                                if 'range' in data:
+                                    result['Range'] = data['range']
+                                if 'targetRange' in data:
+                                    result['TargetRangeMin'] = data['targetRange'][0]
+                                    result['TargetRangeMax'] = data['targetRange'][1]
+                                break;
+                    except Exception as e:
+                        print(e)
+        return result
     # Определяем тип самолета.
     def _get_type(self, json_data):
         """
@@ -596,19 +641,16 @@ class WTPlaneModel:
         result = f'{result.replace('.blk', '')}.blkx'
         return result
 
-    def __init__(self, plane_id='', file_name='', plane_name=''):
+    def __init__(self, plane_id='', plane_name='', paths: WTTelemetryPaths = None):
         """Загружает данные из модели самолета
         :param plane_id: ID самолета, совпадает с именем файла(без расширения) модели самолета. Используется в том случае если расположение данных по умолчанию
         :param file_name: Путь до файла с моделью самолета, если задано то будет использоваться оно.
         :param plane_name: Имя самолёта
         """
         self._data = {}  # Внутренний словарь для хранения свойств
+        self._wt_telemetry_paths = paths if paths else default_paths
 
-        full_file_name = fr'{flightmodels_path}/{plane_id}.blkx'
-        if file_name != '':
-            full_file_name = file_name
-            plane_id = os.path.basename(full_file_name).replace('.blk', '')
-
+        full_file_name = fr'{self._wt_telemetry_paths.flightmodels_path}/{plane_id}.blkx'
         self._data['PlaneID'] = plane_id
 
         # Открываем его, насчет закрытия не паримся, его закроет магия выхода за область видимиости
@@ -618,6 +660,10 @@ class WTPlaneModel:
             self._data['Name'] = {'English': plane_name}
             self._data['fmFile'] = self._get_flight_model(main_data)
             self._data['Type'] = self._get_type(main_data)
+
+            if rwr := self._get_rwr(main_data):
+                self._data['RWR'] = rwr
+
 
     def __getitem__(self, key):
         """Вернуть значение по ключу."""
@@ -646,26 +692,28 @@ class WTPlaneModel:
 
 # Класс возвращает информацию о самолете
 class WTPlaneFullInfo:
-    """ Класс возвращает полную информацию о самолете
+    """
+    Класс возвращает полную информацию о самолете
     Формат использования WTPlaneModel[<Имя параметра>]
     """
 
-    def __init__(self, plane_id='', file_name='', plane_name=''):
+    def __str__(self):
+        # Именно это вызовет print(obj)
+        return json.dumps(self._data, indent=2, ensure_ascii=False)
+
+
+    def __init__(self, plane_id='', plane_name='', paths: WTTelemetryPaths = None ):
         """Загружает данные из модели самолета
         :param plane_id: ID самолета, совпадает с именем файла(без расширения) модели самолета. Используется в том случае если расположение данных по умолчанию
         :param file_name: Путь до файла с моделью самолета, если задано то будет использоваться оно.
-        :param plane_name: Имя самолёта
+        :param plane_name: Полное имя самолёта прочитанное из словаря
         """
         self._data = {}  # Внутренний словарь для хранения свойств
 
-        plane_model = WTPlaneModel(plane_id=plane_id, file_name=file_name, plane_name=plane_name)
-        self._data = plane_model.get_all()
+        wt_telemetry_paths = paths if paths else default_paths
+        self._data = WTPlaneModel(plane_id=plane_id, plane_name=plane_name, paths = paths).get_all()
 
-        fm_file_path = f'{flightmodels_path}'
-        if file_name != '':
-            fm_file_path = os.path.dirname(file_name)
-
-        fm_file_path = fr'{fm_file_path}/{self._data['fmFile']}'
+        fm_file_path = fr'{wt_telemetry_paths.flightmodels_path}/{self._data['fmFile']}'
         flight_model = WTFlightModel(fm_file_path)
         self._data.update(flight_model.get_all())
 
