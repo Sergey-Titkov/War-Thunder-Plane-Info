@@ -262,11 +262,14 @@ class WTFlightModel:
         result = {}
 
         if 'Aerodynamics' in json_data and "FlapsAxis" in json_data['Aerodynamics']:
-            if json_data['Aerodynamics']["FlapsAxis"]["Combat"]["Presents"]:
+            if "Combat" in json_data['Aerodynamics']["FlapsAxis"] and "Presents" in json_data['Aerodynamics']["FlapsAxis"]["Combat"] :
                 result['Combat'] = json_data['Aerodynamics']["FlapsAxis"]["Combat"]["Flaps"] * 100
 
-            if json_data['Aerodynamics']["FlapsAxis"]["Takeoff"]["Presents"]:
+            if "Takeoff" in json_data['Aerodynamics']["FlapsAxis"] and  "Presents" in json_data['Aerodynamics']["FlapsAxis"]["Takeoff"]:
                 result['Takeoff'] = json_data['Aerodynamics']["FlapsAxis"]["Takeoff"]["Flaps"] * 100
+
+            if not result:
+                logging.warning(f'Самолет:{self._data['FmID']} - позиций закрылок не нашли ?')
             return result
 
         if 'AvailableControls' in json_data:
@@ -275,6 +278,8 @@ class WTFlightModel:
 
             if "hasTakeoffFlapsPosition" in json_data['AvailableControls'] and json_data['AvailableControls']["hasTakeoffFlapsPosition"]:
                 result['Takeoff'] = 33
+            if not result:
+                logging.warning(f'Самолет:{self._data['FmID']} - позиций закрылок не нашли ??')
             return result
 
         logging.warning(f'Самолет:{self._data['FmID']} - позиций закрылок не нашли')
@@ -558,24 +563,26 @@ class WTPlaneModel:
         :return: Либо словарь, либо пусто
         """
         result = None
-        if 'sensors' in json_data and 'sensor' in json_data['sensors']:
-            for raw in json_data['sensors']['sensor']:
-                if isinstance(raw, dict) and  'blk' in raw:
-                    try:
-
-                        full_file_name = fr'{self._wt_telemetry_paths.vforms}/{raw['blk']}'.replace('.blk','.blkx')
-                        with open(full_file_name, 'r') as file:
-                            data = json.load(file)
-                            if 'type' in data and 'rwr'== data['type']:
-                                result = {}
-                                if 'range' in data:
-                                    result['Range'] = data['range']
-                                if 'targetRange' in data:
-                                    result['TargetRangeMin'] = data['targetRange'][0]
-                                    result['TargetRangeMax'] = data['targetRange'][1]
-                                break;
-                    except Exception as e:
-                        print('! >',raw, '< ',e)
+        try:
+            if 'sensors' in json_data and 'sensor' in json_data['sensors']:
+                for raw in json_data['sensors']['sensor']:
+                    if isinstance(raw, dict) and  'blk' in raw:
+                        try:
+                            full_file_name = fr'{self._wt_telemetry_paths.vforms}/{raw['blk'].lower()}'.replace('.blk','.blkx')
+                            with open(full_file_name, 'r') as file:
+                                data = json.load(file)
+                                if 'type' in data and 'rwr'== data['type']:
+                                    result = {}
+                                    if 'range' in data:
+                                        result['Range'] = data['range']
+                                    if 'targetRange' in data:
+                                        result['TargetRangeMin'] = data['targetRange'][0]
+                                        result['TargetRangeMax'] = data['targetRange'][1]
+                                    break;
+                        except Exception as e:
+                            print('! >',raw, '< ',e)
+        except Exception as e:
+            print('! >>>', e)
         return result
     # Определяем тип самолета.
     def _get_type(self, json_data):
